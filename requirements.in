@@ -17,6 +17,8 @@ exrex
 google.generativeai
 httpx
 imagehash
+playwright
+puzzler @ git+https://github.com/pierreai-me/puzzler.git@v0.1.8
 pydantic
 selenium
 requests
