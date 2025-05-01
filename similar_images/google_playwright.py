@@ -23,84 +23,33 @@ async def take_screenshot(page: Page, basepath: str, step_name: str) -> None:
 
 async def extract_image_urls_from_js(
     page: Page, max_results: int | None = None
-) -> list[dict]:
+) -> list[str]:
     """Extract image URLs directly from the JavaScript data on the page."""
     # Execute JavaScript to extract the image data from the page
-    result_data = await page.evaluate(
+    urls = await page.evaluate(
         """() => {
-        // Try to find the JavaScript data structure with image information
-        // This targets Google's specific data structure format
         const results = [];
-
-        // Look for script tags or JavaScript variables that might contain image data
         try {
-            // This is a bit of a hack, but we're looking for specific patterns in the JS data
             const scripts = Array.from(document.scripts);
-
             for (const script of scripts) {
                 const text = script.text || '';
-
-                // Look for patterns that indicate image data
-                if (text.includes('https://') && text.includes('.jpg') || text.includes('.png') || text.includes('.jpeg')) {
-                    // Extract URLs using regex
-                    const matches = text.match(/(https:\\/\\/[^\\s"']+\\.(jpg|jpeg|png|gif)(\\?[^\\s"']+)?)/g);
-
-                    if (matches) {
-                        for (const url of matches) {
-                            // Skip Google's thumbnail URLs
-                            if (url.includes('encrypted-tbn0.gstatic.com')) continue;
-
-                            // Try to find associated metadata
-                            const metaIndex = text.indexOf(url);
-                            const beforeUrl = text.substring(Math.max(0, metaIndex - 200), metaIndex);
-                            const afterUrl = text.substring(metaIndex, Math.min(text.length, metaIndex + 200));
-
-                            // Try to extract dimensions if available
-                            let dimensions = null;
-                            const dimensionsMatch = afterUrl.match(/(\\d+)\\s*[xX]\\s*(\\d+)/);
-                            if (dimensionsMatch) {
-                                dimensions = {
-                                    width: parseInt(dimensionsMatch[2]),
-                                    height: parseInt(dimensionsMatch[1])
-                                };
-                            }
-
-                            // Try to extract source URL
-                            let sourceUrl = null;
-                            const sourceMatch = beforeUrl.match(/(https:\\/\\/[^\\s"']+)/g);
-                            if (sourceMatch && sourceMatch.length > 0) {
-                                const potentialSource = sourceMatch[sourceMatch.length - 1];
-                                if (potentialSource.includes('http') && !potentialSource.includes('.jpg') &&
-                                    !potentialSource.includes('.png') && !potentialSource.includes('.gif')) {
-                                    sourceUrl = potentialSource;
-                                }
-                            }
-
-                            results.push(url);
-                        }
-                    }
+                const matches = text.match(/(https?:\\/\\/[^\\s"']+\\.(jpg|jpeg|png)(\\?[^\\s"']+)?)/g);
+                if (!matches) continue;
+                for (const url of matches) {
+                    // Skip Google's thumbnail URLs
+                    if (url.includes('encrypted-tbn0.gstatic.com')) continue;
+                    results.push(url);
                 }
             }
         } catch (e) {
             console.error('Error parsing JS data:', e);
         }
-
-        // Remove duplicates
-        const seen = new Set();
-        return results.filter(item => {
-            if (seen.has(item)) {
-                return false;
-            }
-            seen.add(item);
-            return true;
-        });
+        return results;
     }"""
     )
-
-    if max_results:
-        result_data = result_data[:max_results]
-
-    return result_data
+    urls = list(set(urls))
+    urls = urls[:max_results]
+    return urls
 
 
 class GoogleImageSearch:
@@ -110,7 +59,7 @@ class GoogleImageSearch:
         navigation_timeout: int = 30000,
         scroll_delay: float = 1.0,
         wait_after_click: float = 2.0,
-        safe_search: str = "on",
+        safe_search: bool = True,
         user_agent: str | None = None,
         solver: Puzzler | None = None,
         cookies_file: str | None = None,
@@ -198,53 +147,37 @@ class GoogleImageSearch:
             self.browser = None
             self.context = None
 
-    async def _add_human_behavior(self, page: Page) -> None:
-        """Add human-like behavior to avoid detection."""
-        # Random mouse movements
-        for _ in range(random.randint(2, 5)):
-            await page.mouse.move(random.randint(100, 1000), random.randint(100, 500))
-            await asyncio.sleep(random.uniform(0.1, 0.3))
-
-        # Random pauses
-        await asyncio.sleep(random.uniform(0.5, 1.5))
-
     async def _configure_safe_search(self, page: Page) -> None:
         # Navigate to Google preferences
         print(f"Configuring safe search to: {self.safe_search}")
         await page.goto(self.preferences_url)
-        await asyncio.sleep(10)
         await take_screenshot(page, self.debug_basepath, "safe_search_start")
         # Click on the correct radio button
-        safe_search_options = {
-            "on": "0",  # Filter
-            "images": "1",  # Blur
-            "off": "2",  # Off
-        }
-        data_index = safe_search_options[self.safe_search]
+        # 0 = Filter
+        # 1 = Blur
+        # 2 = Off
+        data_index = 0 if self.safe_search else 2
         selector = (
             f'g-radio-button-group div[jsname="GCYh9b"][data-index="{data_index}"]'
         )
-        await page.wait_for_selector(selector, state="visible", timeout=10000)
+        await page.wait_for_selector(
+            selector, state="visible", timeout=self.navigation_timeout
+        )
         await page.click(selector)
-        # Confirm the change
-        if self.safe_search == "filter":
-            page.wait_for_selector(
-                'div[jsname="t1F84b"]', state="visible", timeout=5000
-            )
-        elif self.safe_search == "blur":
-            page.wait_for_selector(
-                'div[jsname="Ctwz3c"]', state="visible", timeout=5000
-            )
-        elif self.safe_search == "off":
-            page.wait_for_selector('div[jsname="bUGVi"]', state="visible", timeout=5000)
-        print(f"Configured safe search to: {self.safe_search}")
+        await asyncio.sleep(self.wait_after_click)
         await take_screenshot(page, self.debug_basepath, "safe_search_configured")
 
-    async def _scroll_to_load_more(self, page: Page, max_scrolls: int = 10) -> None:
+    async def _scroll_to_load_more(
+        self, page: Page, max_results: int, max_scrolls: int = 10
+    ) -> set[str]:
         """Scroll down to load more images."""
+        ret = set()
         prev_height = await page.evaluate("document.body.scrollHeight")
 
         for i in range(max_scrolls):
+            got = await extract_image_urls_from_js(page, max_results)
+            ret.update(got)
+
             # Scroll down
             await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await asyncio.sleep(self.scroll_delay * random.uniform(0.8, 1.2))
@@ -272,6 +205,8 @@ class GoogleImageSearch:
 
         await take_screenshot(page, self.debug_basepath, "after_scrolling")
 
+        return ret
+
     async def search_by_query(
         self, query: str, max_results: int | None = None
     ) -> AsyncGenerator[str, None]:
@@ -285,11 +220,11 @@ class GoogleImageSearch:
         Yields:
             URLs of images found on the search page
         """
+        await self._initialize_browser()
         page = await self.context.new_page()
-
         try:
             # Configure safe search if needed
-            # await self._configure_safe_search(page)
+            await self._configure_safe_search(page)
 
             # Navigate to Google Images
             await page.goto("https://www.google.com/imghp")
@@ -304,8 +239,6 @@ class GoogleImageSearch:
                     return
                 elif challenge_results.puzzles:
                     await self._save_cookies()
-
-            await self._add_human_behavior(page)
 
             # Enter search query
             await take_screenshot(page, self.debug_basepath, "before_enter_query")
@@ -324,16 +257,18 @@ class GoogleImageSearch:
                 elif challenge_results.puzzles:
                     await self._save_cookies()
 
-            # Scroll to load more images
-            await self._scroll_to_load_more(page)
-
-            # Extract image URLs
+            # Scroll to load all images, extract URLs
+            image_urls = await self._scroll_to_load_more(page, max_results)
             await take_screenshot(page, self.debug_basepath, "all_results")
-            image_urls = await extract_image_urls_from_js(page, max_results)
+
+            print(f"Found {len(image_urls)} URLs")
 
             # Yield each URL
             for url in image_urls:
                 yield url
+
+        except Exception as e:
+            print(f"search_by_query: error: {type(e)} {e}")
 
         finally:
             await page.close()
@@ -355,7 +290,7 @@ class GoogleImageSearch:
 
         try:
             # Configure safe search if needed
-            # await self._configure_safe_search(page)
+            await self._configure_safe_search(page)
 
             await page.goto("https://www.google.com/imghp")
             await take_screenshot(page, self.debug_basepath, "navigated_to_google")
@@ -439,9 +374,8 @@ class GoogleImageSearch:
             await take_screenshot(page, self.debug_basepath, "search_results_visible")
 
             # Scroll to load all images, extract URLs
-            await self._scroll_to_load_more(page)
+            image_urls = await self._scroll_to_load_more(page, max_results)
             await take_screenshot(page, self.debug_basepath, "all_results")
-            image_urls = await extract_image_urls_from_js(page, max_results)
 
             # Yield each URL
             for url in image_urls:

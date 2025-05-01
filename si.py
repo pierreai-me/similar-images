@@ -5,10 +5,12 @@ import json
 import logging
 import os
 import tempfile
+from typing import Literal
 
 from typer import Option, Typer
 
 from similar_images.bing_selenium import BingSelenium
+from similar_images.google_playwright import GoogleImageSearch
 from similar_images.crappy_db import CrappyDB
 from similar_images.filters.db_filters import (
     DbExactDupFilter,
@@ -20,9 +22,12 @@ from similar_images.filters.image_filters import ImageFilter
 from similar_images.image_sources import (
     BrowserImageSource,
     BrowserQuerySource,
+    GoogleImageSource,
+    GoogleQuerySource,
     LocalFileImageSource,
 )
 from similar_images.scraper import Scraper
+from puzzler import GeminiClient, Puzzler
 
 logger = logging.getLogger()
 app = Typer()
@@ -54,6 +59,9 @@ def setup_logging(verbose: bool, logfile: str | None) -> None:
         logging.getLogger(module).disabled = True
 
 
+ALLOWED_SEARCH_ENGINES = ("bing", "google", "all")
+
+
 @app.command()
 def scrape(
     db: str | None = None,
@@ -73,13 +81,19 @@ def scrape(
     paths: list[str] | None = Option(None, "-p"),
     queries: str | None = Option(None, "-q"),
     randomize: bool = Option(False, "-r"),
+    search_engine: str = Option("bing", "-s", help=f"One of {ALLOWED_SEARCH_ENGINES}"),
     threads: int | None = Option(None, "-t"),
-    timestamp: bool = Option(False, "-T", "--timestamp", help="Add timestamp to -D, -o, and -L arguments"),
+    timestamp: bool = Option(
+        False, "-T", "--timestamp", help="Add timestamp to -D, -o, and -L arguments"
+    ),
     verbose: bool = Option(False, "-v"),
     visible: bool = Option(False, "--visible", help="Run browser in visual mode"),
     wait_between_scroll: int | None = Option(None, "--wait-between-scroll"),
     wait_first_load: int | None = Option(None, "--wait-first-load"),
 ) -> None:
+    assert (
+        search_engine in ALLOWED_SEARCH_ENGINES
+    ), f"invalid search engine {search_engine}, must be one of {ALLOWED_SEARCH_ENGINES}"
     if timestamp:
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if outdir:
@@ -98,9 +112,9 @@ def scrape(
         f"{paths=} {queries=} {randomize=} {threads=} {timestamp=} {verbose=} "
         f"{wait_between_scroll=} {wait_first_load=} "
     )
-    assert local_files or paths or queries, (
-        "at least one of -l, -p or -q must be specified"
-    )
+    assert (
+        local_files or paths or queries
+    ), "at least one of -l, -p or -q must be specified"
     # Filters
     crappy_db = None
     filter_objects = []
@@ -121,23 +135,60 @@ def scrape(
                 d = json.loads(f.read())
                 filter_objects.append(GeminiFilter(**d))
     home_tmp_dir = tempfile.mkdtemp(dir=os.environ["HOME"])
-    browser = None
-    if paths or queries:
-        browser = BingSelenium(
+    bing_browser: BingSelenium | None = None
+    google_browser: GoogleImageSearch | None = None
+    if (paths or queries) and search_engine in ("bing", "all"):
+        bing_browser = BingSelenium(
             headless=headless,
             user_data_dir=home_tmp_dir,
             wait_between_scroll=wait_between_scroll,
             wait_first_load=wait_first_load,
             safe_search=not no_safe_search,
         )
+    if (paths or queries) and search_engine in ("google", "all"):
+        gemini_key = os.environ["GEMINI_API_KEY"]
+        model = GeminiClient(
+            api_key=gemini_key,
+            max_retries=3,
+            base_delay=0.5,
+            max_total_time=15,
+        )
+        solver = Puzzler(
+            model,
+            rounds=40,
+            sequences=12,
+            screenshot_basepath=None,
+            grid_4_score_3_threshold=5,
+        )
+        google_browser = GoogleImageSearch(
+            headless=headless,
+            # navigation_timeout: int = 30000,
+            # scroll_delay: float = 1.0,
+            # wait_after_click: float = 2.0,
+            safe_search=not no_safe_search,
+            # user_agent: str | None = None,
+            solver=solver,
+            # cookies_file: str | None = None,
+            # debug_basepath: str | None = None,
+            # preferences_url: str | None = None,
+        )
+
     # Image sources
     image_sources = []
     if local_files:
         image_sources.append(LocalFileImageSource(local_files, random=randomize))
-    if paths:
-        image_sources.append(BrowserImageSource(browser, paths, random=randomize))
-    if queries:
-        image_sources.append(BrowserQuerySource(browser, queries, random=randomize))
+    if paths and search_engine in ("bing", "all"):
+        image_sources.append(BrowserImageSource(bing_browser, paths, random=randomize))
+    if paths and search_engine in ("google", "all"):
+        image_sources.append(GoogleImageSource(google_browser, paths, random=randomize))
+    if queries and search_engine in ("bing", "all"):
+        image_sources.append(
+            BrowserQuerySource(bing_browser, queries, random=randomize)
+        )
+    if queries and search_engine in ("google", "all"):
+        image_sources.append(
+            GoogleQuerySource(google_browser, queries, random=randomize)
+        )
     for image_source in image_sources:
         scraper = Scraper(
             image_source=image_source,

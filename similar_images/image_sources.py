@@ -6,6 +6,7 @@ import exrex
 import httpx
 
 from similar_images.bing_selenium import BingSelenium
+from similar_images.google_playwright import GoogleImageSearch
 from similar_images.types import RunConfiguration
 from similar_images.utils import get_urls_or_files
 
@@ -68,6 +69,51 @@ class BrowserImageSource(ImageSource):
             yield url
 
 
+class GoogleQuerySource(ImageSource):
+
+    def __init__(self, browser: GoogleImageSearch, queries: str, random: bool = False):
+        self._browser = browser
+        self._queries = queries
+        self._random = random
+
+    async def batches(self):
+        queries = exrex.generate(self._queries)
+        if self._random:
+            queries = list(queries)
+            random.shuffle(queries)
+        for query in queries:
+            query = query.strip()
+            yield query
+
+    async def images(self, batch: str):
+        print("GoogleQuerySource images")
+        async for url in self._browser.search_by_query(batch):
+            yield url
+
+
+class GoogleImageSource(ImageSource):
+
+    def __init__(
+        self, browser: GoogleImageSearch, urls_or_paths: list[str], random: bool = False
+    ):
+        self._browser = browser
+        self._urls_or_paths = urls_or_paths
+        self._random = random
+
+    async def batches(self):
+        urls_or_paths = get_urls_or_files(self._urls_or_paths)
+        if self._random:
+            urls_or_paths = list(urls_or_paths)
+            random.shuffle(urls_or_paths)
+        for path in urls_or_paths:
+            yield path
+
+    async def images(self, batch: str):
+        print("GoogleImageSource images")
+        async for url in self._browser.search_by_image(batch):
+            yield url
+
+
 class FakeClient:
     async def get(self, url: str, *args, **kwargs):
         with open(url, "rb") as f:
@@ -109,9 +155,9 @@ class LocalFileImageSource(ImageSource):
 
 
 def get_browser(image_source: str, config: RunConfiguration) -> BingSelenium:
-    assert config.bing_selenium, (
-        f"{image_source}: need to specify bing_selenium configuration"
-    )
+    assert (
+        config.bing_selenium
+    ), f"{image_source}: need to specify bing_selenium configuration"
     home_tmp_dir = tempfile.mkdtemp(dir=os.environ["HOME"])
     bs = config.bing_selenium
     return BingSelenium(

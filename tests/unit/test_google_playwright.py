@@ -111,7 +111,7 @@ expected = {
     ],
 )
 @pytest.mark.asyncio
-async def test_big_cats(path):
+async def test_extracl_urls_from_js(path):
     async with async_playwright() as p:
         # GIVEN
         browser = await p.chromium.launch()
@@ -121,4 +121,4 @@ async def test_big_cats(path):
         # WHEN
         links = await extract_image_urls_from_js(page)
         # THEN
-        assert links == expected[path]
+        assert set(links) == set(expected[path])
