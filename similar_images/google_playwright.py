@@ -1,12 +1,12 @@
 import asyncio
+import datetime
 import json
 import os
 import random
-import datetime
-from typing import AsyncGenerator, List, Optional, Dict, Any, Callable
+import re
+from typing import AsyncGenerator, Any
 import typer
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright, Page
 from puzzler import GeminiClient, Puzzler
 
 
@@ -22,8 +22,8 @@ async def take_screenshot(page: Page, basepath: str, step_name: str) -> None:
 
 
 async def extract_image_urls_from_js(
-    page: Page, max_results: Optional[int] = None
-) -> List[dict]:
+    page: Page, max_results: int | None = None
+) -> list[dict]:
     """Extract image URLs directly from the JavaScript data on the page."""
     # Execute JavaScript to extract the image data from the page
     result_data = await page.evaluate(
@@ -111,7 +111,7 @@ class GoogleImageSearch:
         scroll_delay: float = 1.0,
         wait_after_click: float = 2.0,
         safe_search: str = "on",
-        user_agent: Optional[str] = None,
+        user_agent: str | None = None,
         solver: Puzzler | None = None,
         cookies_file: str | None = None,
         debug_basepath: str | None = None,
@@ -245,8 +245,8 @@ class GoogleImageSearch:
         prev_height = await page.evaluate("document.body.scrollHeight")
 
         for i in range(max_scrolls):
-            # Scroll down with human-like behavior
-            await page.evaluate(f"window.scrollBy(0, {random.randint(500, 800)})")
+            # Scroll down
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await asyncio.sleep(self.scroll_delay * random.uniform(0.8, 1.2))
 
             # Try to click "Show more results" button if it exists
@@ -273,7 +273,7 @@ class GoogleImageSearch:
         await take_screenshot(page, self.debug_basepath, "after_scrolling")
 
     async def search_by_query(
-        self, query: str, max_results: Optional[int] = None
+        self, query: str, max_results: int | None = None
     ) -> AsyncGenerator[str, None]:
         """
         Search for images using a text query.
@@ -339,7 +339,7 @@ class GoogleImageSearch:
             await page.close()
 
     async def search_by_image(
-        self, image_path_or_url: str, max_results: Optional[int] = None
+        self, image_path_or_url: str, max_results: int | None = None
     ) -> AsyncGenerator[str, None]:
         """
         Search for similar images using an existing image.
@@ -357,42 +357,67 @@ class GoogleImageSearch:
             # Configure safe search if needed
             # await self._configure_safe_search(page)
 
-            # Navigate to Google Images
             await page.goto("https://www.google.com/imghp")
             await take_screenshot(page, self.debug_basepath, "navigated_to_google")
 
-            # Click on the camera icon
-            lens_button_selector = (
-                'div[jscontroller="lpsUAf"][jsname="R5mgy"][class="nDcEnd"]'
+            lens_button_selector = 'div[aria-label="Search by image"]'
+            await page.wait_for_selector(
+                lens_button_selector, state="visible", timeout=self.navigation_timeout
             )
-            await page.wait_for_selector(lens_button_selector, state="visible")
             await page.click(lens_button_selector)
-            await asyncio.sleep(self.wait_after_click)
+
+            paste_link_selector = 'input[placeholder="Paste image link"]'
+            upload_button_selector = 'button:has-text("Upload an image")'
+            await page.wait_for_selector(
+                f"{paste_link_selector}, {upload_button_selector}",
+                state="visible",
+                timeout=self.navigation_timeout,
+            )
             await take_screenshot(page, self.debug_basepath, "after_click_camera_icon")
 
-            # Click "Upload an image" option if present
-            upload_option_selector = 'span:has-text("Upload an image")'
-            if await page.is_visible(upload_option_selector):
-                await page.click(upload_option_selector)
-                await take_screenshot(page, self.debug_basepath, "after_upload_option")
-
-            # Select file chooser
-            async with page.expect_file_chooser() as fc_info:
+            async with page.expect_file_chooser(
+                timeout=self.navigation_timeout
+            ) as fc_info:
                 await page.get_by_role("button", name="upload a file").click()
-                await take_screenshot(
-                    page, self.debug_basepath, "after_click_upload_a_file"
-                )
 
             # Set the file in the file chooser
             file_chooser = await fc_info.value
             await file_chooser.set_files(image_path_or_url)
-            await take_screenshot(page, self.debug_basepath, "after_file_chooser")
+            await take_screenshot(page, self.debug_basepath, "after_file_set")
 
-            await asyncio.sleep(self.wait_after_click)
-            await take_screenshot(page, self.debug_basepath, "after_file_chooser_sleep")
+            # Wait until we either see results or challenge
+            challenge_iframe_selector = (
+                'iframe[title="reCAPTCHA"], div.recaptcha-checkbox-border'
+            )
+            results_url_pattern = re.compile(r"/search\?.*(udm=26|vsrid=|vsint=)")
+            results_container_selector = "#rso"
+            wait_for_challenge_task = asyncio.create_task(
+                page.wait_for_selector(
+                    challenge_iframe_selector,
+                    state="visible",
+                    timeout=self.navigation_timeout,
+                )
+            )
+            wait_for_results_task = asyncio.create_task(
+                page.wait_for_url(results_url_pattern, timeout=self.navigation_timeout)
+            )
+            done, pending = await asyncio.wait(
+                [wait_for_challenge_task, wait_for_results_task],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()  # avoid resource leaks
+            await take_screenshot(
+                page, self.debug_basepath, "after_wait_challenge_or_results"
+            )
 
-            # Solve any challenges if needed
-            if self.solver:
+            # Solve challenge if needed
+            if (
+                self.solver
+                and wait_for_challenge_task in done
+                and not wait_for_challenge_task.cancelled()
+            ):
+                await wait_for_challenge_task  # check for exceptions
                 challenge_results = await self.solver.solve(page)
                 if not challenge_results.solved:
                     print("Failed to solve challenge")
@@ -400,16 +425,21 @@ class GoogleImageSearch:
                     return
                 elif challenge_results.puzzles:
                     await self._save_cookies()
+                    await take_screenshot(page, self.debug_basepath, "solved_puzzle")
 
-            # Wait for the search to complete and results to appear
-            await page.wait_for_selector(".rg_i", state="visible", timeout=30000)
-            await page.wait_for_load_state("networkidle")
-            await take_screenshot(page, self.debug_basepath, "after_search_results")
+            # Wait for search results to appear
+            await page.wait_for_selector(
+                results_container_selector,
+                state="visible",
+                timeout=self.navigation_timeout,
+            )
+            await page.wait_for_load_state(
+                "networkidle", timeout=self.navigation_timeout
+            )
+            await take_screenshot(page, self.debug_basepath, "search_results_visible")
 
-            # Scroll to load more images
+            # Scroll to load all images, extract URLs
             await self._scroll_to_load_more(page)
-
-            # Extract image URLs
             await take_screenshot(page, self.debug_basepath, "all_results")
             image_urls = await extract_image_urls_from_js(page, max_results)
 
@@ -439,7 +469,7 @@ async def create_solver() -> Puzzler:
     )
 
 
-async def save_results(results: Dict[str, Any], output_file: str | None) -> None:
+async def save_results(results: dict[str, Any], output_file: str | None) -> None:
     """Save results to a JSON file if output file is specified."""
     if output_file:
         with open(output_file, "w") as f:
@@ -452,11 +482,11 @@ app = typer.Typer(help="Google Image Search Tool")
 
 @app.command()
 def search(
-    query: List[str] = typer.Option(None, "--queries", "-q"),
-    image: List[str] = typer.Option(None, "--images", "-i"),
+    query: list[str] = typer.Option(None, "--queries", "-q"),
+    image: list[str] = typer.Option(None, "--images", "-i"),
     cookies_file: str | None = typer.Option(None, "--cookies", "-c"),
     headless: bool = typer.Option(False, "--headless"),
-    max_results: int = typer.Option(5, "--max-results", "-m"),
+    max_results: int | None = typer.Option(None, "--max-results", "-m"),
     scroll_delay: float = typer.Option(1.5, "--scroll-delay", "-s"),
     wait_click: float = typer.Option(2.0, "--wait-click", "-w"),
     safe_search: str = typer.Option("on", "--safe-search"),
