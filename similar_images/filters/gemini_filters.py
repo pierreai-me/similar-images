@@ -40,10 +40,11 @@ class GeminiFilter(Filter):
     async def filter(self, url: str, contents: bytes, **kwargs) -> FilterResult:
         got = await self._gemini.chat(query=self._query, image_contents=[contents])
         status = got.status_code
+        content = got.content
         block = got.block
         decision = got.decision
         logger.debug(
-            f"Gemini {self._model}/{self._filter_name}: {url=} {status=} {block=} {decision=}"
+            f"Gemini {self._model}/{self._filter_name}: {url=} {status=} {content=} {block=} {decision=}"
         )
         if got.answer() in self._keep_responses:
             return FilterResult(keep=True)
