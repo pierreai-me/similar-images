@@ -59,7 +59,7 @@ def setup_logging(verbose: bool, logfile: str | None) -> None:
         logging.getLogger(module).disabled = True
 
 
-ALLOWED_SEARCH_ENGINES = ("bing", "google", "all")
+ALLOWED_SEARCH_ENGINES = ("bing", "google")
 
 
 @app.command()
@@ -81,7 +81,9 @@ def scrape(
     paths: list[str] | None = Option(None, "-p"),
     queries: str | None = Option(None, "-q"),
     randomize: bool = Option(False, "-r"),
-    search_engine: str = Option("bing", "-s", help=f"One of {ALLOWED_SEARCH_ENGINES}"),
+    search_engines: list[str] | None = Option(
+        None, "-s", help=f"One of {ALLOWED_SEARCH_ENGINES}"
+    ),
     threads: int | None = Option(None, "-t"),
     timestamp: bool = Option(
         False, "-T", "--timestamp", help="Add timestamp to -D, -o, and -L arguments"
@@ -91,9 +93,11 @@ def scrape(
     wait_between_scroll: int | None = Option(None, "--wait-between-scroll"),
     wait_first_load: int | None = Option(None, "--wait-first-load"),
 ) -> None:
+    if not search_engines:
+        search_engines.append("bing")  # original behavior
     assert (
-        search_engine in ALLOWED_SEARCH_ENGINES
-    ), f"invalid search engine {search_engine}, must be one of {ALLOWED_SEARCH_ENGINES}"
+        e in ALLOWED_SEARCH_ENGINES for e in search_engines
+    ), f"invalid search engines {search_engines}, must be included in {ALLOWED_SEARCH_ENGINES}"
     if timestamp:
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if outdir:
@@ -137,7 +141,7 @@ def scrape(
     home_tmp_dir = tempfile.mkdtemp(dir=os.environ["HOME"])
     bing_browser: BingSelenium | None = None
     google_browser: GoogleImageSearch | None = None
-    if (paths or queries) and search_engine in ("bing", "all"):
+    if (paths or queries) and "bing" in search_engines:
         bing_browser = BingSelenium(
             headless=headless,
             user_data_dir=home_tmp_dir,
@@ -145,7 +149,7 @@ def scrape(
             wait_first_load=wait_first_load,
             safe_search=not no_safe_search,
         )
-    if (paths or queries) and search_engine in ("google", "all"):
+    if (paths or queries) and "google" in search_engines:
         gemini_key = os.environ["GEMINI_API_KEY"]
         model = GeminiClient(
             api_key=gemini_key,
@@ -177,15 +181,15 @@ def scrape(
     image_sources = []
     if local_files:
         image_sources.append(LocalFileImageSource(local_files, random=randomize))
-    if paths and search_engine in ("bing", "all"):
+    if paths and "bing" in search_engines:
         image_sources.append(BrowserImageSource(bing_browser, paths, random=randomize))
-    if paths and search_engine in ("google", "all"):
+    if paths and "google" in search_engines:
         image_sources.append(GoogleImageSource(google_browser, paths, random=randomize))
-    if queries and search_engine in ("bing", "all"):
+    if queries and "bing" in search_engines:
         image_sources.append(
             BrowserQuerySource(bing_browser, queries, random=randomize)
         )
-    if queries and search_engine in ("google", "all"):
+    if queries and "google" in search_engines:
         image_sources.append(
             GoogleQuerySource(google_browser, queries, random=randomize)
         )
