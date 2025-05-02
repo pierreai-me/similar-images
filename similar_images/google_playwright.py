@@ -315,41 +315,11 @@ class GoogleImageSearch:
             # Set the file in the file chooser
             file_chooser = await fc_info.value
             await file_chooser.set_files(image_path_or_url)
+            await page.wait_for_load_state("networkidle")
             await take_screenshot(page, self.debug_basepath, "after_file_set")
 
-            # Wait until we either see results or challenge
-            challenge_iframe_selector = (
-                'iframe[title="reCAPTCHA"], div.recaptcha-checkbox-border'
-            )
-            results_url_pattern = re.compile(r"/search\?.*(udm=26|vsrid=|vsint=)")
-            results_container_selector = "#rso"
-            wait_for_challenge_task = asyncio.create_task(
-                page.wait_for_selector(
-                    challenge_iframe_selector,
-                    state="visible",
-                    timeout=self.navigation_timeout,
-                )
-            )
-            wait_for_results_task = asyncio.create_task(
-                page.wait_for_url(results_url_pattern, timeout=self.navigation_timeout)
-            )
-            done, pending = await asyncio.wait(
-                [wait_for_challenge_task, wait_for_results_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            for task in pending:
-                task.cancel()  # avoid resource leaks
-            await take_screenshot(
-                page, self.debug_basepath, "after_wait_challenge_or_results"
-            )
-
-            # Solve challenge if needed
-            if (
-                self.solver
-                and wait_for_challenge_task in done
-                and not wait_for_challenge_task.cancelled()
-            ):
-                await wait_for_challenge_task  # check for exceptions
+            # Solve any challenges if needed
+            if self.solver:
                 challenge_results = await self.solver.solve(page)
                 if not challenge_results.solved:
                     print("Failed to solve challenge")
@@ -357,9 +327,9 @@ class GoogleImageSearch:
                     return
                 elif challenge_results.puzzles:
                     await self._save_cookies()
-                    await take_screenshot(page, self.debug_basepath, "solved_puzzle")
 
             # Wait for search results to appear
+            results_container_selector = "#rso"
             await page.wait_for_selector(
                 results_container_selector,
                 state="visible",
