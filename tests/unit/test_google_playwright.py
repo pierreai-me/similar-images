@@ -100,6 +100,8 @@ expected = {
         "https://wolfcenter.org/wp-content/uploads/2022/09/unnamed-8.jpg",
         "https://media.4-paws.org/d/2/0/f/d20f54cb61a264106844fcd8b6a6c62d7bbcef95/VIER%20PFOTEN_2016-01-28_007.jpg",
         "https://images.squarespace-cdn.com/content/v1/66ec3b49803ab81bf84f89e4/1726788153507-YAZRK2A3KRGHEXMGSOEV/JoJo2012BigHiss.jpg",
+        "https://felidaefund.org/media/cache/autosized/images/Marks%20of%20Greatness%20-%20Picture%201_2-384.webp",
+        "https://felidaefund.org/media/cache/autosized/images/igallery/original/101-200/bobcat-1-179-256.webp",
     ],
 }
 
@@ -121,4 +123,5 @@ async def test_extracl_urls_from_js(path):
         # WHEN
         links = await extract_image_urls_from_js(page)
         # THEN
+        print(len(links))
         assert set(links) == set(expected[path])

@@ -33,7 +33,7 @@ async def extract_image_urls_from_js(
             const scripts = Array.from(document.scripts);
             for (const script of scripts) {
                 const text = script.text || '';
-                const matches = text.match(/(https?:\\/\\/[^\\s"']+\\.(jpg|jpeg|png)(\\?[^\\s"']+)?)/g);
+                const matches = text.match(/(https?:\\/\\/[^\\s"']+\\.(jpg|jpeg|png|webp)(\\?[^\\s"']+)?)/g);
                 if (!matches) continue;
                 for (const url of matches) {
                     // Skip Google's thumbnail URLs
