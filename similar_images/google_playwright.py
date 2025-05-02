@@ -96,6 +96,7 @@ class GoogleImageSearch:
         self.preferences_url = preferences_url or "https://www.google.com/safesearch"
         self.browser = None
         self.context = None
+        self.settings_page = None
 
     async def __aenter__(self):
         """Initialize the browser when entering context."""
@@ -136,9 +137,9 @@ class GoogleImageSearch:
                         print(f"Cookies loaded from {self.cookies_file}")
                 except (FileNotFoundError, json.JSONDecodeError):
                     print(f"No valid cookies file found at {self.cookies_file}")
-
-            # Set navigation timeout
             self.context.set_default_navigation_timeout(self.navigation_timeout)
+            self.settings_page = await self.context.new_page()
+            await self._configure_safe_search(self.settings_page)
 
     async def _close_browser(self) -> None:
         """Close the browser if initialized."""
@@ -222,10 +223,8 @@ class GoogleImageSearch:
         """
         await self._initialize_browser()
         page = await self.context.new_page()
-        try:
-            # Configure safe search if needed
-            await self._configure_safe_search(page)
 
+        try:
             # Navigate to Google Images
             await page.goto("https://www.google.com/imghp")
             await take_screenshot(page, self.debug_basepath, "navigated_to_google")
@@ -286,12 +285,10 @@ class GoogleImageSearch:
         Yields:
             URLs of similar images found on the search page
         """
+        await self._initialize_browser()
         page = await self.context.new_page()
 
         try:
-            # Configure safe search if needed
-            await self._configure_safe_search(page)
-
             await page.goto("https://www.google.com/imghp")
             await take_screenshot(page, self.debug_basepath, "navigated_to_google")
 
