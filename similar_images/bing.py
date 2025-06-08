@@ -47,7 +47,7 @@ _JS_DROP_FILE = """
 """
 
 
-class BingSelenium:
+class Bing:
     def __init__(
         self,
         driver: Any | None = None,
