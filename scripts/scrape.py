@@ -3,7 +3,7 @@ import logging
 
 import fire
 
-from similar_images.bing_selenium import BingSelenium
+from similar_images.bing import Bing
 from similar_images.crappy_db import CrappyDB
 from similar_images.filters.utils import get_filters
 from similar_images.image_sources import get_image_sources

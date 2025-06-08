@@ -2,19 +2,19 @@ import os
 
 import pytest
 
-from similar_images.bing_selenium import BingSelenium
+from similar_images.bing import Bing
 
 
 @pytest.fixture
 def headless_browser(home_tmp_dir):
-    ret = BingSelenium(headless=True, user_data_dir=home_tmp_dir)
+    ret = Bing(headless=True, user_data_dir=home_tmp_dir)
     yield ret
     ret.done()
 
 
 @pytest.fixture
 def visual_browser(home_tmp_dir):
-    ret = BingSelenium(headless=False, user_data_dir=home_tmp_dir)
+    ret = Bing(headless=False, user_data_dir=home_tmp_dir)
     yield ret
     ret.done()
 

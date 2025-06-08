@@ -4,9 +4,10 @@ import json
 import os
 import random
 import re
-from typing import AsyncGenerator, Any
+from typing import Any, AsyncGenerator
+
 import typer
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import Page, async_playwright
 from puzzler import GeminiClient, Puzzler
 
 

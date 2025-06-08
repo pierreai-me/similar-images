@@ -1,6 +1,6 @@
 import pytest
 
-from similar_images.bing_selenium import BingSelenium
+from similar_images.bing import Bing
 from similar_images.crappy_db import CrappyDB
 from similar_images.filters.db_filters import DbUrlFilter
 from similar_images.filters.image_filters import ImageFilter
@@ -10,11 +10,11 @@ from similar_images.scraper import Scraper
 
 @pytest.fixture
 def get_browser(home_tmp_dir):
-    browser: BingSelenium | None = None
+    browser: Bing | None = None
 
-    def _fn(headless: bool) -> BingSelenium:
+    def _fn(headless: bool) -> Bing:
         nonlocal browser
-        browser = BingSelenium(
+        browser = Bing(
             wait_first_load=5,
             wait_between_scroll=10,
             safe_search=True,

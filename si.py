@@ -9,7 +9,7 @@ from typing import Literal
 
 from typer import Option, Typer
 
-from similar_images.bing_selenium import BingSelenium
+from similar_images.bing import Bing
 from similar_images.google_playwright import GoogleImageSearch
 from similar_images.crappy_db import CrappyDB
 from similar_images.filters.db_filters import (
@@ -139,10 +139,10 @@ def scrape(
                 d = json.loads(f.read())
                 filter_objects.append(GeminiFilter(**d))
     home_tmp_dir = tempfile.mkdtemp(dir=os.environ["HOME"])
-    bing_browser: BingSelenium | None = None
+    bing_browser: Bing | None = None
     google_browser: GoogleImageSearch | None = None
     if (paths or queries) and "bing" in search_engines:
-        bing_browser = BingSelenium(
+        bing_browser = Bing(
             headless=headless,
             user_data_dir=home_tmp_dir,
             wait_between_scroll=wait_between_scroll,

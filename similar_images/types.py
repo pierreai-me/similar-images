@@ -5,7 +5,7 @@ from typing import Any
 from pydantic import BaseModel
 
 
-class BingSeleniumConfiguration(BaseModel):
+class BingConfiguration(BaseModel):
     wait_between_scroll: float | None = None
     wait_first_load: float | None = None
     headless: bool | None = None
@@ -19,7 +19,7 @@ class CommonConfiguration(BaseModel):
     filters: list[dict[str, Any]] | None = None
     debug_outdir: str | None = None
     concurrency: int | None = None
-    bing_selenium: BingSeleniumConfiguration | None = None
+    bing_selenium: BingConfiguration | None = None
 
 
 class RunConfiguration(CommonConfiguration):

@@ -57,7 +57,7 @@ si.py -l /path/to/test/images -o results -g evaluation_filter.json
 - `LocalFileImageSource` - Local file processing for evaluation
 
 **Browser Automation:**
-- `bing_selenium.py` - Selenium-based Bing automation
+- `bing.py` - Selenium-based Bing automation
 - `google_playwright.py` - Playwright-based Google automation (supports CAPTCHA via Puzzler)
 
 **4-Stage Filter System (`similar_images/filters/`):**

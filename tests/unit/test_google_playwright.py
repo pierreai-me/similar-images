@@ -1,7 +1,9 @@
-from similar_images.google_playwright import extract_image_urls_from_js
-from playwright.async_api import async_playwright
-import pytest
 from pathlib import Path
+
+import pytest
+from playwright.async_api import async_playwright
+
+from similar_images.google_playwright import extract_image_urls_from_js
 
 expected = {
     "tests/data/bigcats.html": [
