@@ -8,7 +8,7 @@ class FilterResult(BaseModel):
     explanation: str | None = None
 
 
-type FilterStage = Literal["url", "contents", "hashes", "image"]
+FilterStage = Literal["url", "contents", "hashes", "image"]
 
 
 class Filter:

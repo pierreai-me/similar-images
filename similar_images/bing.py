@@ -62,6 +62,11 @@ class Bing:
             options.add_argument("--headless")
         options.add_argument("--disable-gpu")
         options.add_argument("--start-maximized")
+        options.add_argument("--no-sandbox")  # Added
+        options.add_argument("--disable-dev-shm-usage")  # Added
+        options.add_argument("--remote-debugging-port=0")  # Added
+        options.add_argument("--disable-background-networking")  # Added
+        options.add_argument("--disable-sync")  # Added
         if user_data_dir:
             options.add_argument(f"--user-data-dir={user_data_dir}")
         self.driver = driver if driver else webdriver.Chrome(options=options)

@@ -12,11 +12,23 @@ def headless_browser(home_tmp_dir):
     ret.done()
 
 
+import os
+import shutil
+
 @pytest.fixture
 def visual_browser(home_tmp_dir):
-    ret = Bing(headless=False, user_data_dir=home_tmp_dir)
+    profile_dir = os.path.join(home_tmp_dir, "chrome_profile")
+    # Ensure the profile directory is clean before starting
+    if os.path.exists(profile_dir):
+        shutil.rmtree(profile_dir)
+    os.makedirs(profile_dir)
+
+    ret = Bing(headless=False, user_data_dir=profile_dir)
     yield ret
     ret.done()
+    # Clean up the profile directory after the test
+    if os.path.exists(profile_dir):
+        shutil.rmtree(profile_dir)
 
 
 @pytest.mark.asyncio
