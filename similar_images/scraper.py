@@ -149,6 +149,7 @@ class Scraper:
         self, link: str, query: str, downloaded_links: set[str], q_stats: dict[str, int]
     ) -> None:
         async with self.semaphore:
+            logger.debug(f"Processing {link=}")
             if self.count is not None and q_stats["new"] >= self.count:
                 return  # collected enough images
             link, code = await self.process_link(link, query)
@@ -263,5 +264,5 @@ class Scraper:
             str_e = str(e)
             if m := re.match("(.*) for url .*", str_e):
                 str_e = m.group(1)
-            logger.debug(f"Failed to download {link}: {type(e).__name__} {str_e}")
+            logger.exception(f"Failed to download {link} using {self.client}: {type(e).__name__} {str_e}")
             return (None, "err")

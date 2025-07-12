@@ -93,11 +93,12 @@ def scrape(
     wait_between_scroll: int | None = Option(None, "--wait-between-scroll"),
     wait_first_load: int | None = Option(None, "--wait-first-load"),
 ) -> None:
-    if not search_engines:
-        search_engines.append("bing")  # original behavior
-    assert (
-        e in ALLOWED_SEARCH_ENGINES for e in search_engines
-    ), f"invalid search engines {search_engines}, must be included in {ALLOWED_SEARCH_ENGINES}"
+    if (paths or queries) and not search_engines:
+        search_engines = ["bing"]  # original behavior
+    if search_engines:
+        assert (
+            e in ALLOWED_SEARCH_ENGINES for e in search_engines
+        ), f"invalid search engines {search_engines}, must be included in {ALLOWED_SEARCH_ENGINES}"
     if timestamp:
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if outdir:
@@ -194,6 +195,7 @@ def scrape(
             GoogleQuerySource(google_browser, queries, random=randomize)
         )
     for image_source in image_sources:
+        logger.info(f"Scraping: {image_source}")
         scraper = Scraper(
             image_source=image_source,
             db=crappy_db,
