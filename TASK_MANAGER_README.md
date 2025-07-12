@@ -75,7 +75,7 @@ The application has a three-panel layout:
 3. Configure batch settings:
    - **Auto-timestamped directories**: Creates `{base_dir}/{YYYYMMDD_HHMMSS}/` structure
    - **Parameter overrides**: JSON object that overrides task parameters
-   - **Environment variables**: Set env vars for all tasks in batch
+   - **Environment variables**: Set env vars for all tasks in batch (e.g., `GEMINI_API_KEY=your_key_here`)
    - **Task order**: Drag tasks from left panel to reorder execution
 
 ### Parameter Mapping

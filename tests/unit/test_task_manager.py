@@ -166,3 +166,34 @@ def test_task_parameter_serialization():
 
     finally:
         os.unlink(db_path)
+
+
+def test_batch_environment_variables():
+    """Test that batch environment variables are properly stored and retrieved."""
+    with tempfile.NamedTemporaryFile(delete=False) as temp_db:
+        db_path = temp_db.name
+
+    try:
+        db = TaskBatchDatabase(db_path)
+
+        # Create batch with environment variables
+        batch = Batch(
+            name="Test Batch",
+            environment_variables={
+                "GEMINI_API_KEY": "test_key_123",
+                "DEBUG_MODE": "true",
+                "OUTPUT_FORMAT": "json"
+            }
+        )
+        batch_id = db.save_batch(batch)
+
+        # Retrieve and verify environment variables
+        retrieved_batch = db.get_batch(batch_id)
+        assert retrieved_batch.environment_variables is not None
+        assert retrieved_batch.environment_variables["GEMINI_API_KEY"] == "test_key_123"
+        assert retrieved_batch.environment_variables["DEBUG_MODE"] == "true"
+        assert retrieved_batch.environment_variables["OUTPUT_FORMAT"] == "json"
+        assert len(retrieved_batch.environment_variables) == 3
+
+    finally:
+        os.unlink(db_path)

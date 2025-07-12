@@ -203,27 +203,54 @@ class TaskExecutor(QThread):
             self.task_completed.emit(False, "No tasks in batch")
             return
 
+        # Apply batch environment variables to the process
+        original_env = {}
+        if batch.environment_variables:
+            import os
+            for key, value in batch.environment_variables.items():
+                # Store original value (if any) for restoration later
+                original_env[key] = os.environ.get(key)
+                # Set the new value
+                os.environ[key] = value
+                self.log_message.emit(f"Set environment variable: {key}={value}")
+
         total_tasks = len(batch.task_order)
 
-        for i, task_id in enumerate(batch.task_order):
-            if self.should_stop:
-                return
+        try:
+            for i, task_id in enumerate(batch.task_order):
+                if self.should_stop:
+                    return
 
-            task = self.database.get_task(task_id)
-            if not task:
-                self.log_message.emit(f"Task {task_id} not found, skipping")
-                continue
+                task = self.database.get_task(task_id)
+                if not task:
+                    self.log_message.emit(f"Task {task_id} not found, skipping")
+                    continue
 
-            progress = int((i / total_tasks) * 100)
-            self.progress_updated.emit(
-                progress, f"Running task {i + 1}/{total_tasks}: {task.name}"
-            )
+                progress = int((i / total_tasks) * 100)
+                self.progress_updated.emit(
+                    progress, f"Running task {i + 1}/{total_tasks}: {task.name}"
+                )
 
-            modified_task = self.apply_batch_overrides(task, batch)
-            self.run_task(modified_task)
+                modified_task = self.apply_batch_overrides(task, batch)
+                self.run_task(modified_task)
 
-        self.progress_updated.emit(100, f"Batch completed: {batch.name}")
-        self.task_completed.emit(True, f"Batch '{batch.name}' completed successfully")
+            self.progress_updated.emit(100, f"Batch completed: {batch.name}")
+            self.task_completed.emit(True, f"Batch '{batch.name}' completed successfully")
+
+        finally:
+            # Always restore original environment variables, even if batch was stopped or failed
+            if batch.environment_variables:
+                import os
+                for key, original_value in original_env.items():
+                    if original_value is None:
+                        # Remove the key if it wasn't set originally
+                        if key in os.environ:
+                            del os.environ[key]
+                            self.log_message.emit(f"Removed environment variable: {key}")
+                    else:
+                        # Restore the original value
+                        os.environ[key] = original_value
+                        self.log_message.emit(f"Restored environment variable: {key}={original_value}")
 
     def apply_batch_overrides(self, task: Task, batch: Batch) -> Task:
         modified_task = Task(
