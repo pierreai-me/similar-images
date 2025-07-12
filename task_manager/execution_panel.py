@@ -105,7 +105,7 @@ class TaskExecutor(QThread):
             if task.gemini:
                 for config_path in task.gemini:
                     try:
-                        with open(config_path, "rt") as f:
+                        with open(config_path, "rt", encoding="utf-8") as f:
                             config_dict = json.loads(f.read())
                             filter_objects.append(GeminiFilter(**config_dict))
                     except (FileNotFoundError, json.JSONDecodeError) as e:

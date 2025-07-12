@@ -19,7 +19,7 @@ class CrappyDB:
         self._build_cache()
 
     def put(self, r: Result) -> None:
-        with open(self.filename, "at") as f:
+        with open(self.filename, "at", encoding="utf-8") as f:
             f.write(f"{r.dump()}\n")
         self._cache.append(r)
         for field in INDEX_FIELDS:
@@ -33,7 +33,7 @@ class CrappyDB:
             yield r
 
     def _scan_file(self):
-        with open(self.filename, "rt") as f:
+        with open(self.filename, "rt", encoding="utf-8") as f:
             for line in f.readlines():
                 r = Result.model_validate_json(line)
                 yield r

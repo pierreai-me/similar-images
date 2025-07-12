@@ -117,7 +117,7 @@ def scrape(
         filter_objects.append(ImageFilter(min_size=min_size, min_area=min_area))
     if gemini:
         for config in gemini:
-            with open(config, "rt") as f:
+            with open(config, "rt", encoding="utf-8") as f:
                 d = json.loads(f.read())
                 filter_objects.append(GeminiFilter(**d))
     home_tmp_dir = tempfile.mkdtemp(dir=os.path.expanduser("~"))

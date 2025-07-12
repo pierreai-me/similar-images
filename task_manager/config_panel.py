@@ -252,7 +252,6 @@ class TaskConfigWidget(QWidget):
 
     def load_task(self, task: Task):
         # Temporarily disable auto-save during loading
-        old_task = self.current_task
         self.current_task = None
 
         self.name_edit.setText(task.name or "")
@@ -502,7 +501,6 @@ class BatchConfigWidget(QWidget):
 
     def load_batch(self, batch: Batch):
         # Temporarily disable auto-save during loading
-        old_batch = self.current_batch
         self.current_batch = None
 
         self.name_edit.setText(batch.name or "")
