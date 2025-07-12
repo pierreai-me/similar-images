@@ -22,6 +22,7 @@ google.generativeai
 httpx
 imagehash
 pydantic
+pyperclip
 selenium
 requests
 typer
