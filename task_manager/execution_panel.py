@@ -1,6 +1,11 @@
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QTabWidget,
-    QTextEdit, QProgressBar, QLabel
+    QWidget,
+    QVBoxLayout,
+    QPushButton,
+    QTabWidget,
+    QTextEdit,
+    QProgressBar,
+    QLabel,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
 from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -37,6 +42,10 @@ class TaskExecutor(QThread):
             elif isinstance(self.item, Batch):
                 self.run_batch(self.item)
         except Exception as e:
+            import traceback
+
+            error_msg = f"{str(e)}\n\nFull traceback:\n{traceback.format_exc()}"
+            self.log_message.emit(error_msg)
             self.task_completed.emit(False, str(e))
 
     def run_task(self, task: Task):
@@ -47,12 +56,16 @@ class TaskExecutor(QThread):
             from similar_images.bing_selenium import BingSelenium
             from similar_images.crappy_db import CrappyDB
             from similar_images.filters.db_filters import (
-                DbExactDupFilter, DbNearDupFilter, DbUrlFilter
+                DbExactDupFilter,
+                DbNearDupFilter,
+                DbUrlFilter,
             )
             from similar_images.filters.gemini_filters import GeminiFilter
             from similar_images.filters.image_filters import ImageFilter
             from similar_images.image_sources import (
-                BrowserImageSource, BrowserQuerySource, LocalFileImageSource
+                BrowserImageSource,
+                BrowserQuerySource,
+                LocalFileImageSource,
             )
             from similar_images.scraper import Scraper
             import tempfile
@@ -67,7 +80,7 @@ class TaskExecutor(QThread):
 
             crappy_db = None
             filter_objects = []
-            
+
             if task.db:
                 crappy_db = CrappyDB(task.db)
                 filter_objects += [
@@ -79,7 +92,7 @@ class TaskExecutor(QThread):
             min_size = None
             if task.min_size:
                 try:
-                    width, height = map(int, task.min_size.split(','))
+                    width, height = map(int, task.min_size.split(","))
                     min_size = (width, height)
                 except ValueError:
                     min_size = (640, 480)
@@ -92,17 +105,19 @@ class TaskExecutor(QThread):
             if task.gemini:
                 for config_path in task.gemini:
                     try:
-                        with open(config_path, 'rt') as f:
+                        with open(config_path, "rt") as f:
                             config_dict = json.loads(f.read())
                             filter_objects.append(GeminiFilter(**config_dict))
                     except (FileNotFoundError, json.JSONDecodeError) as e:
-                        self.log_message.emit(f"Error loading Gemini config {config_path}: {e}")
+                        self.log_message.emit(
+                            f"Error loading Gemini config {config_path}: {e}"
+                        )
 
             self.progress_updated.emit(30, "Setting up browser")
 
             browser = None
             home_tmp_dir = tempfile.mkdtemp(dir=os.environ["HOME"])
-            
+
             if task.paths or task.queries:
                 headless = not task.visible
                 browser = BingSelenium(
@@ -120,11 +135,17 @@ class TaskExecutor(QThread):
 
             image_sources = []
             if task.local_files:
-                image_sources.append(LocalFileImageSource(task.local_files, random=task.randomize))
-            if task.paths:
-                image_sources.append(BrowserImageSource(browser, task.paths, random=task.randomize))
-            if task.queries:
-                image_sources.append(BrowserQuerySource(browser, task.queries, random=task.randomize))
+                image_sources.append(
+                    LocalFileImageSource(task.local_files, random=task.randomize)
+                )
+            if task.paths and browser:
+                image_sources.append(
+                    BrowserImageSource(browser, task.paths, random=task.randomize)
+                )
+            if task.queries and browser:
+                image_sources.append(
+                    BrowserQuerySource(browser, task.queries, random=task.randomize)
+                )
 
             if not image_sources:
                 raise ValueError("No image sources specified")
@@ -147,10 +168,13 @@ class TaskExecutor(QThread):
             for i, image_source in enumerate(image_sources):
                 if self.should_stop:
                     return
-                    
+
                 progress = 70 + (i / len(image_sources)) * 25
-                self.progress_updated.emit(int(progress), f"Processing image source {i+1}/{len(image_sources)}")
-                
+                self.progress_updated.emit(
+                    int(progress),
+                    f"Processing image source {i + 1}/{len(image_sources)}",
+                )
+
                 scraper = Scraper(
                     image_source=image_source,
                     db=crappy_db,
@@ -166,29 +190,34 @@ class TaskExecutor(QThread):
             self.task_completed.emit(True, f"Task '{task.name}' completed successfully")
 
         except Exception as e:
-            self.log_message.emit(f"Error in task {task.name}: {str(e)}")
+            import traceback
+
+            error_msg = f"Error in task {task.name}: {str(e)}\n\nFull traceback:\n{traceback.format_exc()}"
+            self.log_message.emit(error_msg)
             self.task_completed.emit(False, f"Task failed: {str(e)}")
 
     def run_batch(self, batch: Batch):
         self.log_message.emit(f"Starting batch: {batch.name}")
-        
+
         if not batch.task_order:
             self.task_completed.emit(False, "No tasks in batch")
             return
 
         total_tasks = len(batch.task_order)
-        
+
         for i, task_id in enumerate(batch.task_order):
             if self.should_stop:
                 return
-                
+
             task = self.database.get_task(task_id)
             if not task:
                 self.log_message.emit(f"Task {task_id} not found, skipping")
                 continue
 
             progress = int((i / total_tasks) * 100)
-            self.progress_updated.emit(progress, f"Running task {i+1}/{total_tasks}: {task.name}")
+            self.progress_updated.emit(
+                progress, f"Running task {i + 1}/{total_tasks}: {task.name}"
+            )
 
             modified_task = self.apply_batch_overrides(task, batch)
             self.run_task(modified_task)
@@ -198,21 +227,36 @@ class TaskExecutor(QThread):
 
     def apply_batch_overrides(self, task: Task, batch: Batch) -> Task:
         modified_task = Task(
-            id=task.id, name=task.name, db=task.db, debug_outdir=task.debug_outdir,
-            gemini=task.gemini, local_files=task.local_files, logfile=task.logfile,
-            min_area=task.min_area, min_size=task.min_size, no_safe_search=task.no_safe_search,
-            num_images=task.num_images, outdir=task.outdir, paths=task.paths,
-            queries=task.queries, randomize=task.randomize, threads=task.threads,
-            timestamp=task.timestamp, verbose=task.verbose, visible=task.visible,
-            wait_between_scroll=task.wait_between_scroll, wait_first_load=task.wait_first_load
+            id=task.id,
+            name=task.name,
+            db=task.db,
+            debug_outdir=task.debug_outdir,
+            gemini=task.gemini,
+            local_files=task.local_files,
+            logfile=task.logfile,
+            min_area=task.min_area,
+            min_size=task.min_size,
+            no_safe_search=task.no_safe_search,
+            num_images=task.num_images,
+            outdir=task.outdir,
+            paths=task.paths,
+            queries=task.queries,
+            randomize=task.randomize,
+            threads=task.threads,
+            timestamp=task.timestamp,
+            verbose=task.verbose,
+            visible=task.visible,
+            wait_between_scroll=task.wait_between_scroll,
+            wait_first_load=task.wait_first_load,
         )
 
         if batch.auto_timestamped_dir and batch.base_output_dir:
             import datetime
+
             now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             base_dir = f"{batch.base_output_dir}/{now_str}"
             task_dir = f"{base_dir}/{task.name}"
-            
+
             if not modified_task.outdir:
                 modified_task.outdir = task_dir
             if not modified_task.debug_outdir:
@@ -254,8 +298,8 @@ class MonitorTab(QWidget):
 
     def setup_logging(self):
         self.log_handler = LogHandler(self.log_text)
-        self.log_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
-        
+        self.log_handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
+
         logger = logging.getLogger()
         logger.addHandler(self.log_handler)
         logger.setLevel(logging.INFO)
@@ -281,12 +325,14 @@ class BrowserTab(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        
+
         self.web_view = QWebEngineView()
         self.web_view.setUrl(QUrl("about:blank"))
         layout.addWidget(self.web_view)
 
-        placeholder_label = QLabel("Browser view will appear here when running in visible mode")
+        placeholder_label = QLabel(
+            "Browser view will appear here when running in visible mode"
+        )
         placeholder_label.setAlignment(Qt.AlignCenter)
         placeholder_label.setStyleSheet("color: gray; font-size: 14px;")
         layout.addWidget(placeholder_label)
@@ -299,7 +345,7 @@ class HistoryTab(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        
+
         self.history_text = QTextEdit()
         self.history_text.setReadOnly(True)
         self.history_text.setText("Execution history will appear here (future feature)")
@@ -339,10 +385,11 @@ class ExecutionPanel(QWidget):
             return
 
         from .main_window import MainWindow
+
         main_window = self.parent()
         while main_window and not isinstance(main_window, MainWindow):
             main_window = main_window.parent()
-        
+
         if not main_window:
             return
 
@@ -362,7 +409,7 @@ class ExecutionPanel(QWidget):
             self.executor.wait(5000)
             if self.executor.isRunning():
                 self.executor.terminate()
-        
+
         self.stop_button.setEnabled(False)
         self.monitor_tab.status_label.setText("Stopped")
         self.stop_requested.emit()

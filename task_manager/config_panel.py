@@ -1,11 +1,21 @@
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLineEdit, QSpinBox,
-    QCheckBox, QPushButton, QLabel, QTextEdit, QScrollArea, QFrame,
-    QListWidget, QListWidgetItem, QGroupBox, QFileDialog, QComboBox
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QLineEdit,
+    QSpinBox,
+    QCheckBox,
+    QPushButton,
+    QLabel,
+    QTextEdit,
+    QScrollArea,
+    QListWidget,
+    QListWidgetItem,
+    QGroupBox,
+    QFileDialog,
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
-from PyQt5.QtGui import QDrag
-from typing import Dict, Any
+from PyQt5.QtCore import Qt, pyqtSignal
 
 from .database import TaskBatchDatabase, Task, Batch
 
@@ -19,7 +29,7 @@ class TaskConfigWidget(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        
+
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_widget = QWidget()
@@ -139,7 +149,7 @@ class TaskConfigWidget(QWidget):
 
     def load_task(self, task: Task):
         self.current_task = task
-        
+
         self.name_edit.setText(task.name or "")
         self.db_edit.setText(task.db or "")
         self.debug_outdir_edit.setText(task.debug_outdir or "")
@@ -168,46 +178,66 @@ class TaskConfigWidget(QWidget):
         self.current_task.name = self.name_edit.text()
         self.current_task.db = self.db_edit.text() or None
         self.current_task.debug_outdir = self.debug_outdir_edit.text() or None
-        
+
         gemini_text = self.gemini_edit.toPlainText().strip()
-        self.current_task.gemini = [line.strip() for line in gemini_text.split('\n') if line.strip()] if gemini_text else None
-        
+        self.current_task.gemini = (
+            [line.strip() for line in gemini_text.split("\n") if line.strip()]
+            if gemini_text
+            else None
+        )
+
         local_files_text = self.local_files_edit.toPlainText().strip()
-        self.current_task.local_files = [line.strip() for line in local_files_text.split('\n') if line.strip()] if local_files_text else None
-        
+        self.current_task.local_files = (
+            [line.strip() for line in local_files_text.split("\n") if line.strip()]
+            if local_files_text
+            else None
+        )
+
         self.current_task.logfile = self.logfile_edit.text() or None
         self.current_task.min_area = self.min_area_spin.value() or None
         self.current_task.min_size = self.min_size_edit.text() or None
         self.current_task.no_safe_search = self.no_safe_search_check.isChecked()
         self.current_task.num_images = self.num_images_spin.value() or None
         self.current_task.outdir = self.outdir_edit.text() or None
-        
+
         paths_text = self.paths_edit.toPlainText().strip()
-        self.current_task.paths = [line.strip() for line in paths_text.split('\n') if line.strip()] if paths_text else None
-        
+        self.current_task.paths = (
+            [line.strip() for line in paths_text.split("\n") if line.strip()]
+            if paths_text
+            else None
+        )
+
         self.current_task.queries = self.queries_edit.text() or None
         self.current_task.randomize = self.randomize_check.isChecked()
         self.current_task.threads = self.threads_spin.value() or None
         self.current_task.timestamp = self.timestamp_check.isChecked()
         self.current_task.verbose = self.verbose_check.isChecked()
         self.current_task.visible = self.visible_check.isChecked()
-        self.current_task.wait_between_scroll = self.wait_between_scroll_spin.value() or None
+        self.current_task.wait_between_scroll = (
+            self.wait_between_scroll_spin.value() or None
+        )
         self.current_task.wait_first_load = self.wait_first_load_spin.value() or None
 
         self.database.save_task(self.current_task)
 
     def browse_db_file(self):
-        filename, _ = QFileDialog.getOpenFileName(self, "Select Database File", "", "Database Files (*.db);;All Files (*)")
+        filename, _ = QFileDialog.getOpenFileName(
+            self, "Select Database File", "", "Database Files (*.db);;All Files (*)"
+        )
         if filename:
             self.db_edit.setText(filename)
 
     def browse_debug_outdir(self):
-        dirname = QFileDialog.getExistingDirectory(self, "Select Debug Output Directory")
+        dirname = QFileDialog.getExistingDirectory(
+            self, "Select Debug Output Directory"
+        )
         if dirname:
             self.debug_outdir_edit.setText(dirname)
 
     def browse_logfile(self):
-        filename, _ = QFileDialog.getSaveFileName(self, "Select Log File", "", "Log Files (*.log);;All Files (*)")
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Select Log File", "", "Log Files (*.log);;All Files (*)"
+        )
         if filename:
             self.logfile_edit.setText(filename)
 
@@ -227,13 +257,19 @@ class TaskOrderListWidget(QListWidget):
         self.batch_config = None
 
     def dragEnterEvent(self, event):
-        if (event.mimeData().hasText() and event.mimeData().text().startswith("task_id:")) or event.source() == self:
+        if (
+            event.mimeData().hasText()
+            and event.mimeData().text().startswith("task_id:")
+        ) or event.source() == self:
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dragMoveEvent(self, event):
-        if (event.mimeData().hasText() and event.mimeData().text().startswith("task_id:")) or event.source() == self:
+        if (
+            event.mimeData().hasText()
+            and event.mimeData().text().startswith("task_id:")
+        ) or event.source() == self:
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -244,7 +280,9 @@ class TaskOrderListWidget(QListWidget):
             super().dropEvent(event)
             if self.batch_config:
                 self.batch_config.save_current_batch()
-        elif event.mimeData().hasText() and event.mimeData().text().startswith("task_id:"):
+        elif event.mimeData().hasText() and event.mimeData().text().startswith(
+            "task_id:"
+        ):
             # External drop from task list
             task_id_str = event.mimeData().text().replace("task_id:", "")
             try:
@@ -256,16 +294,16 @@ class TaskOrderListWidget(QListWidget):
                         existing_item = self.item(i)
                         if existing_item.data(Qt.UserRole) == task_id:
                             return  # Task already in list
-                    
+
                     # Add task to list
                     item = QListWidgetItem(task.name)
                     item.setData(Qt.UserRole, task_id)
                     self.addItem(item)
-                    
+
                     # Update batch configuration
                     if self.batch_config:
                         self.batch_config.save_current_batch()
-                    
+
                     event.acceptProposedAction()
             except ValueError:
                 event.ignore()
@@ -290,7 +328,7 @@ class BatchConfigWidget(QWidget):
 
         basic_group = QGroupBox("Basic Settings")
         basic_layout = QFormLayout(basic_group)
-        
+
         self.name_edit = QLineEdit()
         self.name_edit.textChanged.connect(self.save_current_batch)
         basic_layout.addRow("Name:", self.name_edit)
@@ -312,7 +350,7 @@ class BatchConfigWidget(QWidget):
 
         overrides_group = QGroupBox("Parameter Overrides")
         overrides_layout = QVBoxLayout(overrides_group)
-        
+
         self.overrides_edit = QTextEdit()
         self.overrides_edit.setMaximumHeight(100)
         self.overrides_edit.setPlaceholderText("JSON format parameter overrides")
@@ -323,7 +361,7 @@ class BatchConfigWidget(QWidget):
 
         env_group = QGroupBox("Environment Variables")
         env_layout = QVBoxLayout(env_group)
-        
+
         self.env_edit = QTextEdit()
         self.env_edit.setMaximumHeight(100)
         self.env_edit.setPlaceholderText("KEY=value format, one per line")
@@ -334,7 +372,7 @@ class BatchConfigWidget(QWidget):
 
         tasks_group = QGroupBox("Task Order")
         tasks_layout = QVBoxLayout(tasks_group)
-        
+
         self.task_order_list = TaskOrderListWidget()
         self.task_order_list.database = self.database
         self.task_order_list.batch_config = self
@@ -348,19 +386,22 @@ class BatchConfigWidget(QWidget):
 
     def load_batch(self, batch: Batch):
         self.current_batch = batch
-        
+
         self.name_edit.setText(batch.name or "")
         self.auto_timestamp_check.setChecked(batch.auto_timestamped_dir)
         self.base_output_dir_edit.setText(batch.base_output_dir or "")
-        
+
         if batch.parameter_overrides:
             import json
+
             self.overrides_edit.setText(json.dumps(batch.parameter_overrides, indent=2))
         else:
             self.overrides_edit.setText("")
-            
+
         if batch.environment_variables:
-            env_text = "\n".join([f"{k}={v}" for k, v in batch.environment_variables.items()])
+            env_text = "\n".join(
+                [f"{k}={v}" for k, v in batch.environment_variables.items()]
+            )
             self.env_edit.setText(env_text)
         else:
             self.env_edit.setText("")
@@ -389,6 +430,7 @@ class BatchConfigWidget(QWidget):
         if overrides_text:
             try:
                 import json
+
                 self.current_batch.parameter_overrides = json.loads(overrides_text)
             except json.JSONDecodeError:
                 self.current_batch.parameter_overrides = None
@@ -398,9 +440,9 @@ class BatchConfigWidget(QWidget):
         env_text = self.env_edit.toPlainText().strip()
         if env_text:
             env_dict = {}
-            for line in env_text.split('\n'):
-                if '=' in line:
-                    key, value = line.split('=', 1)
+            for line in env_text.split("\n"):
+                if "=" in line:
+                    key, value = line.split("=", 1)
                     env_dict[key.strip()] = value.strip()
             self.current_batch.environment_variables = env_dict
         else:
@@ -439,7 +481,7 @@ class ConfigPanel(QWidget):
 
         self.task_config = TaskConfigWidget(self.database)
         self.batch_config = BatchConfigWidget(self.database)
-        
+
         self.welcome_label = QLabel("Select a task or batch to configure")
         self.welcome_label.setAlignment(Qt.AlignCenter)
         self.welcome_label.setStyleSheet("color: gray; font-size: 16px;")

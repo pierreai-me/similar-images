@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
 
         self.main_splitter = main_splitter
         self.right_splitter = right_splitter
-        
+
         # Set default sizes
         main_splitter.setSizes([300, 1100])
         right_splitter.setSizes([450, 450])
@@ -66,12 +66,12 @@ class MainWindow(QMainWindow):
         geometry = self.settings.value("geometry")
         if geometry:
             self.restoreGeometry(geometry)
-        
+
         # Restore splitter positions
         main_splitter_state = self.settings.value("main_splitter_state")
         if main_splitter_state:
             self.main_splitter.restoreState(main_splitter_state)
-        
+
         right_splitter_state = self.settings.value("right_splitter_state")
         if right_splitter_state:
             self.right_splitter.restoreState(right_splitter_state)
@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
     def save_geometry(self):
         # Save window geometry
         self.settings.setValue("geometry", self.saveGeometry())
-        
+
         # Save splitter positions
         self.settings.setValue("main_splitter_state", self.main_splitter.saveState())
         self.settings.setValue("right_splitter_state", self.right_splitter.saveState())

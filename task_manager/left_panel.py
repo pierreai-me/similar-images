@@ -1,6 +1,14 @@
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QListWidget, QListWidgetItem, QLabel,
-    QPushButton, QHBoxLayout, QMenu, QMessageBox, QInputDialog
+    QWidget,
+    QVBoxLayout,
+    QListWidget,
+    QListWidgetItem,
+    QLabel,
+    QPushButton,
+    QHBoxLayout,
+    QMenu,
+    QMessageBox,
+    QInputDialog,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
 from PyQt5.QtGui import QDrag
@@ -79,7 +87,7 @@ class TaskListWidget(QListWidget):
             verbose=task.verbose,
             visible=task.visible,
             wait_between_scroll=task.wait_between_scroll,
-            wait_first_load=task.wait_first_load
+            wait_first_load=task.wait_first_load,
         )
         self.database.save_task(new_task)
         self.refresh()
@@ -87,8 +95,11 @@ class TaskListWidget(QListWidget):
     def delete_task(self, item):
         task = item.data(Qt.UserRole)
         reply = QMessageBox.question(
-            self, "Delete Task", f"Delete task '{task.name}'?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            self,
+            "Delete Task",
+            f"Delete task '{task.name}'?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
             self.database.delete_task(task.id)
@@ -137,9 +148,13 @@ class BatchListWidget(QListWidget):
             name=f"{batch.name} (Copy)",
             auto_timestamped_dir=batch.auto_timestamped_dir,
             base_output_dir=batch.base_output_dir,
-            parameter_overrides=batch.parameter_overrides.copy() if batch.parameter_overrides else None,
-            environment_variables=batch.environment_variables.copy() if batch.environment_variables else None,
-            task_order=batch.task_order.copy() if batch.task_order else None
+            parameter_overrides=batch.parameter_overrides.copy()
+            if batch.parameter_overrides
+            else None,
+            environment_variables=batch.environment_variables.copy()
+            if batch.environment_variables
+            else None,
+            task_order=batch.task_order.copy() if batch.task_order else None,
         )
         self.database.save_batch(new_batch)
         self.refresh()
@@ -147,8 +162,11 @@ class BatchListWidget(QListWidget):
     def delete_batch(self, item):
         batch = item.data(Qt.UserRole)
         reply = QMessageBox.question(
-            self, "Delete Batch", f"Delete batch '{batch.name}'?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            self,
+            "Delete Batch",
+            f"Delete batch '{batch.name}'?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
             self.database.delete_batch(batch.id)
