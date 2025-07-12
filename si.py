@@ -120,7 +120,7 @@ def scrape(
             with open(config, "rt") as f:
                 d = json.loads(f.read())
                 filter_objects.append(GeminiFilter(**d))
-    home_tmp_dir = tempfile.mkdtemp(dir=os.environ["HOME"])
+    home_tmp_dir = tempfile.mkdtemp(dir=os.path.expanduser("~"))
     browser = None
     if paths or queries:
         browser = BingSelenium(

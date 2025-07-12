@@ -116,7 +116,7 @@ class TaskExecutor(QThread):
             self.progress_updated.emit(30, "Setting up browser")
 
             browser = None
-            home_tmp_dir = tempfile.mkdtemp(dir=os.environ["HOME"])
+            home_tmp_dir = tempfile.mkdtemp(dir=os.path.expanduser("~"))
 
             if task.paths or task.queries:
                 headless = not task.visible

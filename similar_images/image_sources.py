@@ -112,7 +112,7 @@ def get_browser(image_source: str, config: RunConfiguration) -> BingSelenium:
     assert config.bing_selenium, (
         f"{image_source}: need to specify bing_selenium configuration"
     )
-    home_tmp_dir = tempfile.mkdtemp(dir=os.environ["HOME"])
+    home_tmp_dir = tempfile.mkdtemp(dir=os.path.expanduser("~"))
     bs = config.bing_selenium
     return BingSelenium(
         wait_first_load=bs.wait_first_load,
