@@ -3,7 +3,8 @@ from PyQt5.QtWidgets import (
     QCheckBox, QPushButton, QLabel, QTextEdit, QScrollArea, QFrame,
     QListWidget, QListWidgetItem, QGroupBox, QFileDialog, QComboBox
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
+from PyQt5.QtGui import QDrag
 from typing import Dict, Any
 
 from .database import TaskBatchDatabase, Task, Batch
@@ -216,6 +217,62 @@ class TaskConfigWidget(QWidget):
             self.outdir_edit.setText(dirname)
 
 
+class TaskOrderListWidget(QListWidget):
+    def __init__(self):
+        super().__init__()
+        self.setDragDropMode(QListWidget.DragDrop)
+        self.setDefaultDropAction(Qt.MoveAction)
+        self.setAcceptDrops(True)
+        self.database = None
+        self.batch_config = None
+
+    def dragEnterEvent(self, event):
+        if (event.mimeData().hasText() and event.mimeData().text().startswith("task_id:")) or event.source() == self:
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if (event.mimeData().hasText() and event.mimeData().text().startswith("task_id:")) or event.source() == self:
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        if event.source() == self:
+            # Internal move - let the default behavior handle it
+            super().dropEvent(event)
+            if self.batch_config:
+                self.batch_config.save_current_batch()
+        elif event.mimeData().hasText() and event.mimeData().text().startswith("task_id:"):
+            # External drop from task list
+            task_id_str = event.mimeData().text().replace("task_id:", "")
+            try:
+                task_id = int(task_id_str)
+                task = self.database.get_task(task_id)
+                if task:
+                    # Check if task is already in the list
+                    for i in range(self.count()):
+                        existing_item = self.item(i)
+                        if existing_item.data(Qt.UserRole) == task_id:
+                            return  # Task already in list
+                    
+                    # Add task to list
+                    item = QListWidgetItem(task.name)
+                    item.setData(Qt.UserRole, task_id)
+                    self.addItem(item)
+                    
+                    # Update batch configuration
+                    if self.batch_config:
+                        self.batch_config.save_current_batch()
+                    
+                    event.acceptProposedAction()
+            except ValueError:
+                event.ignore()
+        else:
+            event.ignore()
+
+
 class BatchConfigWidget(QWidget):
     def __init__(self, database: TaskBatchDatabase):
         super().__init__()
@@ -278,9 +335,9 @@ class BatchConfigWidget(QWidget):
         tasks_group = QGroupBox("Task Order")
         tasks_layout = QVBoxLayout(tasks_group)
         
-        self.task_order_list = QListWidget()
-        self.task_order_list.setDragDropMode(QListWidget.InternalMove)
-        self.task_order_list.setAcceptDrops(True)
+        self.task_order_list = TaskOrderListWidget()
+        self.task_order_list.database = self.database
+        self.task_order_list.batch_config = self
         self.task_order_list.itemChanged.connect(self.save_current_batch)
         tasks_layout.addWidget(self.task_order_list)
 

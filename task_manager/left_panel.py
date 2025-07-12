@@ -2,7 +2,8 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QListWidgetItem, QLabel,
     QPushButton, QHBoxLayout, QMenu, QMessageBox, QInputDialog
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QMimeData
+from PyQt5.QtGui import QDrag
 
 from .database import TaskBatchDatabase, Task, Batch
 
@@ -14,6 +15,17 @@ class TaskListWidget(QListWidget):
         self.setDragDropMode(QListWidget.DragOnly)
         self.setDefaultDropAction(Qt.CopyAction)
         self.refresh()
+
+    def startDrag(self, supportedActions):
+        item = self.currentItem()
+        if item:
+            task = item.data(Qt.UserRole)
+            if task and task.id:
+                drag = QDrag(self)
+                mimeData = QMimeData()
+                mimeData.setText(f"task_id:{task.id}")
+                drag.setMimeData(mimeData)
+                drag.exec_(Qt.CopyAction)
 
     def refresh(self):
         self.clear()

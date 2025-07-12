@@ -1,12 +1,10 @@
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget,
-    QTextEdit, QProgressBar, QLabel, QScrollArea, QFrame
+    QWidget, QVBoxLayout, QPushButton, QTabWidget,
+    QTextEdit, QProgressBar, QLabel
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 import logging
-import sys
-from io import StringIO
 
 from .database import Task, Batch
 
