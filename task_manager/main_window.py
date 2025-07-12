@@ -1,6 +1,6 @@
 import sys
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSettings
 from PyQt5.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QSplitter, QWidget
 
 from .config_panel import ConfigPanel
@@ -12,9 +12,11 @@ from .left_panel import LeftPanel
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.settings = QSettings("TaskBatchManager", "TaskBatchManager")
         self.database = TaskBatchDatabase()
         self.init_ui()
         self.connect_signals()
+        self.restore_geometry()
 
     def init_ui(self):
         self.setWindowTitle("Task Batch Manager")
@@ -41,6 +43,10 @@ class MainWindow(QMainWindow):
         self.execution_panel = ExecutionPanel()
         right_splitter.addWidget(self.execution_panel)
 
+        self.main_splitter = main_splitter
+        self.right_splitter = right_splitter
+        
+        # Set default sizes
         main_splitter.setSizes([300, 1100])
         right_splitter.setSizes([450, 450])
 
@@ -54,6 +60,33 @@ class MainWindow(QMainWindow):
 
     def stop_execution(self):
         pass
+
+    def restore_geometry(self):
+        # Restore window geometry
+        geometry = self.settings.value("geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
+        
+        # Restore splitter positions
+        main_splitter_state = self.settings.value("main_splitter_state")
+        if main_splitter_state:
+            self.main_splitter.restoreState(main_splitter_state)
+        
+        right_splitter_state = self.settings.value("right_splitter_state")
+        if right_splitter_state:
+            self.right_splitter.restoreState(right_splitter_state)
+
+    def save_geometry(self):
+        # Save window geometry
+        self.settings.setValue("geometry", self.saveGeometry())
+        
+        # Save splitter positions
+        self.settings.setValue("main_splitter_state", self.main_splitter.saveState())
+        self.settings.setValue("right_splitter_state", self.right_splitter.saveState())
+
+    def closeEvent(self, event):
+        self.save_geometry()
+        super().closeEvent(event)
 
 
 def main():
