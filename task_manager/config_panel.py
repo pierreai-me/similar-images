@@ -57,10 +57,13 @@ class TaskConfigWidget(QWidget):
         debug_outdir_layout.addWidget(debug_outdir_browse_btn)
         scroll_layout.addRow("Debug Output Dir:", debug_outdir_layout)
 
-        self.gemini_edit = QTextEdit()
-        self.gemini_edit.setMaximumHeight(60)
-        self.gemini_edit.textChanged.connect(self.save_current_task)
-        scroll_layout.addRow("Gemini Configs (one per line):", self.gemini_edit)
+        # Create Gemini configs section with dynamic file list
+        gemini_widget = QWidget()
+        self.gemini_layout = QVBoxLayout(gemini_widget)
+        self.gemini_layout.setContentsMargins(0, 0, 0, 0)
+        self.gemini_file_widgets = []
+        self.add_gemini_file_widget()  # Add initial empty widget
+        scroll_layout.addRow("Gemini Configs:", gemini_widget)
 
         self.local_files_edit = QTextEdit()
         self.local_files_edit.setMaximumHeight(60)
@@ -147,15 +150,115 @@ class TaskConfigWidget(QWidget):
         scroll_area.setWidget(scroll_widget)
         layout.addWidget(scroll_area)
 
+    def add_gemini_file_widget(self, initial_path=""):
+        """Add a new Gemini config file selection widget."""
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+
+        file_edit = QLineEdit()
+        file_edit.setText(initial_path)
+        file_edit.textChanged.connect(self.on_gemini_file_changed)
+        row_layout.addWidget(file_edit)
+
+        browse_btn = QPushButton("Browse")
+        browse_btn.clicked.connect(lambda: self.browse_gemini_file(file_edit))
+        row_layout.addWidget(browse_btn)
+
+        remove_btn = QPushButton("×")
+        remove_btn.setMaximumWidth(30)
+        remove_btn.clicked.connect(
+            lambda: self.remove_gemini_file_widget(row_widget, file_edit)
+        )
+        row_layout.addWidget(remove_btn)
+
+        self.gemini_layout.addWidget(row_widget)
+        self.gemini_file_widgets.append((row_widget, file_edit))
+
+        # Hide remove button if this is the only widget
+        remove_btn.setVisible(len(self.gemini_file_widgets) > 1)
+
+    def remove_gemini_file_widget(self, row_widget, file_edit):
+        """Remove a Gemini config file widget."""
+        if len(self.gemini_file_widgets) <= 1:
+            return  # Always keep at least one widget
+
+        # Remove from layout and widget list
+        self.gemini_layout.removeWidget(row_widget)
+        row_widget.deleteLater()
+        self.gemini_file_widgets = [
+            (widget, edit)
+            for widget, edit in self.gemini_file_widgets
+            if edit != file_edit
+        ]
+
+        # Update remove button visibility
+        for widget, edit in self.gemini_file_widgets:
+            remove_btn = widget.layout().itemAt(2).widget()
+            remove_btn.setVisible(len(self.gemini_file_widgets) > 1)
+
+        self.save_current_task()
+
+    def on_gemini_file_changed(self):
+        """Handle when a Gemini file path changes."""
+        # Check if we need to add a new empty widget
+        all_filled = all(
+            edit.text().strip() for widget, edit in self.gemini_file_widgets
+        )
+
+        if all_filled:
+            self.add_gemini_file_widget()
+            # Update remove button visibility for all widgets
+            for widget, edit in self.gemini_file_widgets:
+                remove_btn = widget.layout().itemAt(2).widget()
+                remove_btn.setVisible(len(self.gemini_file_widgets) > 1)
+
+        self.save_current_task()
+
+    def browse_gemini_file(self, file_edit):
+        """Browse for a Gemini config file."""
+        filename, _ = QFileDialog.getOpenFileName(
+            self, "Select Gemini Config File", "", "JSON Files (*.json);;All Files (*)"
+        )
+        if filename:
+            file_edit.setText(filename)
+
+    def load_gemini_files(self, gemini_files):
+        """Load Gemini config files into the dynamic widgets."""
+        # Clear existing widgets
+        for widget, edit in self.gemini_file_widgets:
+            self.gemini_layout.removeWidget(widget)
+            widget.deleteLater()
+        self.gemini_file_widgets.clear()
+
+        # Add widgets for each file
+        if gemini_files:
+            for file_path in gemini_files:
+                self.add_gemini_file_widget(file_path)
+
+        # Always ensure at least one empty widget exists
+        if not self.gemini_file_widgets or all(
+            edit.text().strip() for widget, edit in self.gemini_file_widgets
+        ):
+            self.add_gemini_file_widget()
+
+    def get_gemini_files(self):
+        """Get list of non-empty Gemini config file paths."""
+        return [
+            edit.text().strip()
+            for widget, edit in self.gemini_file_widgets
+            if edit.text().strip()
+        ]
+
     def load_task(self, task: Task):
         # Temporarily disable auto-save during loading
         old_task = self.current_task
         self.current_task = None
-        
+
         self.name_edit.setText(task.name or "")
         self.db_edit.setText(task.db or "")
         self.debug_outdir_edit.setText(task.debug_outdir or "")
-        self.gemini_edit.setText("\n".join(task.gemini or []))
+        self.load_gemini_files(task.gemini or [])
         self.local_files_edit.setText("\n".join(task.local_files or []))
         self.logfile_edit.setText(task.logfile or "")
         self.min_area_spin.setValue(task.min_area or 0)
@@ -172,7 +275,7 @@ class TaskConfigWidget(QWidget):
         self.visible_check.setChecked(task.visible)
         self.wait_between_scroll_spin.setValue(task.wait_between_scroll or 0)
         self.wait_first_load_spin.setValue(task.wait_first_load or 0)
-        
+
         # Re-enable auto-save
         self.current_task = task
 
@@ -184,12 +287,8 @@ class TaskConfigWidget(QWidget):
         self.current_task.db = self.db_edit.text() or None
         self.current_task.debug_outdir = self.debug_outdir_edit.text() or None
 
-        gemini_text = self.gemini_edit.toPlainText().strip()
-        self.current_task.gemini = (
-            [line.strip() for line in gemini_text.split("\n") if line.strip()]
-            if gemini_text
-            else None
-        )
+        gemini_files = self.get_gemini_files()
+        self.current_task.gemini = gemini_files if gemini_files else None
 
         local_files_text = self.local_files_edit.toPlainText().strip()
         self.current_task.local_files = (
@@ -199,10 +298,14 @@ class TaskConfigWidget(QWidget):
         )
 
         self.current_task.logfile = self.logfile_edit.text() or None
-        self.current_task.min_area = self.min_area_spin.value() if self.min_area_spin.value() > 0 else None
+        self.current_task.min_area = (
+            self.min_area_spin.value() if self.min_area_spin.value() > 0 else None
+        )
         self.current_task.min_size = self.min_size_edit.text() or None
         self.current_task.no_safe_search = self.no_safe_search_check.isChecked()
-        self.current_task.num_images = self.num_images_spin.value() if self.num_images_spin.value() > 0 else None
+        self.current_task.num_images = (
+            self.num_images_spin.value() if self.num_images_spin.value() > 0 else None
+        )
         self.current_task.outdir = self.outdir_edit.text() or None
 
         paths_text = self.paths_edit.toPlainText().strip()
@@ -214,14 +317,22 @@ class TaskConfigWidget(QWidget):
 
         self.current_task.queries = self.queries_edit.text() or None
         self.current_task.randomize = self.randomize_check.isChecked()
-        self.current_task.threads = self.threads_spin.value() if self.threads_spin.value() > 0 else None
+        self.current_task.threads = (
+            self.threads_spin.value() if self.threads_spin.value() > 0 else None
+        )
         self.current_task.timestamp = self.timestamp_check.isChecked()
         self.current_task.verbose = self.verbose_check.isChecked()
         self.current_task.visible = self.visible_check.isChecked()
         self.current_task.wait_between_scroll = (
-            self.wait_between_scroll_spin.value() if self.wait_between_scroll_spin.value() > 0 else None
+            self.wait_between_scroll_spin.value()
+            if self.wait_between_scroll_spin.value() > 0
+            else None
         )
-        self.current_task.wait_first_load = self.wait_first_load_spin.value() if self.wait_first_load_spin.value() > 0 else None
+        self.current_task.wait_first_load = (
+            self.wait_first_load_spin.value()
+            if self.wait_first_load_spin.value() > 0
+            else None
+        )
 
         self.database.save_task(self.current_task)
 
@@ -420,7 +531,7 @@ class BatchConfigWidget(QWidget):
     def load_task_order(self):
         # Temporarily disconnect signals to prevent auto-save during loading
         self.task_order_list.itemChanged.disconnect()
-        
+
         self.task_order_list.clear()
         if self.current_batch and self.current_batch.task_order:
             for task_id in self.current_batch.task_order:
@@ -429,7 +540,7 @@ class BatchConfigWidget(QWidget):
                     item = QListWidgetItem(task.name)
                     item.setData(Qt.UserRole, task.id)
                     self.task_order_list.addItem(item)
-        
+
         # Reconnect signals
         self.task_order_list.itemChanged.connect(self.save_current_batch)
 
