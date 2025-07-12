@@ -148,8 +148,10 @@ class TaskConfigWidget(QWidget):
         layout.addWidget(scroll_area)
 
     def load_task(self, task: Task):
-        self.current_task = task
-
+        # Temporarily disable auto-save during loading
+        old_task = self.current_task
+        self.current_task = None
+        
         self.name_edit.setText(task.name or "")
         self.db_edit.setText(task.db or "")
         self.debug_outdir_edit.setText(task.debug_outdir or "")
@@ -170,6 +172,9 @@ class TaskConfigWidget(QWidget):
         self.visible_check.setChecked(task.visible)
         self.wait_between_scroll_spin.setValue(task.wait_between_scroll or 0)
         self.wait_first_load_spin.setValue(task.wait_first_load or 0)
+        
+        # Re-enable auto-save
+        self.current_task = task
 
     def save_current_task(self):
         if not self.current_task:
@@ -194,10 +199,10 @@ class TaskConfigWidget(QWidget):
         )
 
         self.current_task.logfile = self.logfile_edit.text() or None
-        self.current_task.min_area = self.min_area_spin.value() or None
+        self.current_task.min_area = self.min_area_spin.value() if self.min_area_spin.value() > 0 else None
         self.current_task.min_size = self.min_size_edit.text() or None
         self.current_task.no_safe_search = self.no_safe_search_check.isChecked()
-        self.current_task.num_images = self.num_images_spin.value() or None
+        self.current_task.num_images = self.num_images_spin.value() if self.num_images_spin.value() > 0 else None
         self.current_task.outdir = self.outdir_edit.text() or None
 
         paths_text = self.paths_edit.toPlainText().strip()
@@ -209,14 +214,14 @@ class TaskConfigWidget(QWidget):
 
         self.current_task.queries = self.queries_edit.text() or None
         self.current_task.randomize = self.randomize_check.isChecked()
-        self.current_task.threads = self.threads_spin.value() or None
+        self.current_task.threads = self.threads_spin.value() if self.threads_spin.value() > 0 else None
         self.current_task.timestamp = self.timestamp_check.isChecked()
         self.current_task.verbose = self.verbose_check.isChecked()
         self.current_task.visible = self.visible_check.isChecked()
         self.current_task.wait_between_scroll = (
-            self.wait_between_scroll_spin.value() or None
+            self.wait_between_scroll_spin.value() if self.wait_between_scroll_spin.value() > 0 else None
         )
-        self.current_task.wait_first_load = self.wait_first_load_spin.value() or None
+        self.current_task.wait_first_load = self.wait_first_load_spin.value() if self.wait_first_load_spin.value() > 0 else None
 
         self.database.save_task(self.current_task)
 
@@ -385,7 +390,9 @@ class BatchConfigWidget(QWidget):
         layout.addWidget(scroll_area)
 
     def load_batch(self, batch: Batch):
-        self.current_batch = batch
+        # Temporarily disable auto-save during loading
+        old_batch = self.current_batch
+        self.current_batch = None
 
         self.name_edit.setText(batch.name or "")
         self.auto_timestamp_check.setChecked(batch.auto_timestamped_dir)
@@ -406,9 +413,14 @@ class BatchConfigWidget(QWidget):
         else:
             self.env_edit.setText("")
 
+        # Re-enable auto-save before loading task order
+        self.current_batch = batch
         self.load_task_order()
 
     def load_task_order(self):
+        # Temporarily disconnect signals to prevent auto-save during loading
+        self.task_order_list.itemChanged.disconnect()
+        
         self.task_order_list.clear()
         if self.current_batch and self.current_batch.task_order:
             for task_id in self.current_batch.task_order:
@@ -417,6 +429,9 @@ class BatchConfigWidget(QWidget):
                     item = QListWidgetItem(task.name)
                     item.setData(Qt.UserRole, task.id)
                     self.task_order_list.addItem(item)
+        
+        # Reconnect signals
+        self.task_order_list.itemChanged.connect(self.save_current_batch)
 
     def save_current_batch(self):
         if not self.current_batch:
