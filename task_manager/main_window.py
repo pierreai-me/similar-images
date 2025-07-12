@@ -1,14 +1,12 @@
 import sys
-from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QHBoxLayout, QVBoxLayout, QWidget,
-    QSplitter, QFrame
-)
-from PyQt5.QtCore import Qt
 
-from .left_panel import LeftPanel
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QSplitter, QWidget
+
 from .config_panel import ConfigPanel
-from .execution_panel import ExecutionPanel
 from .database import TaskBatchDatabase
+from .execution_panel import ExecutionPanel
+from .left_panel import LeftPanel
 
 
 class MainWindow(QMainWindow):
@@ -50,7 +48,7 @@ class MainWindow(QMainWindow):
         self.left_panel.task_selected.connect(self.config_panel.show_task_config)
         self.left_panel.batch_selected.connect(self.config_panel.show_batch_config)
         self.left_panel.selection_cleared.connect(self.config_panel.clear_config)
-        
+
         self.config_panel.run_selected.connect(self.execution_panel.run_task_or_batch)
         self.execution_panel.stop_requested.connect(self.stop_execution)
 
@@ -59,15 +57,6 @@ class MainWindow(QMainWindow):
 
 
 def main():
-    import os
-    if os.environ.get('DISPLAY') is None:
-        print("No DISPLAY environment variable found.")
-        print("To run the GUI, either:")
-        print("1. Set up X11 forwarding: export DISPLAY=:0.0")
-        print("2. Use virtual display: export DISPLAY=:99 && Xvfb :99 -screen 0 1024x768x24 &")
-        print("3. Install X server on Windows (VcXsrv/Xming)")
-        return
-    
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()

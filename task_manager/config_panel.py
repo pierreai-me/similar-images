@@ -279,7 +279,7 @@ class BatchConfigWidget(QWidget):
         tasks_layout = QVBoxLayout(tasks_group)
         
         self.task_order_list = QListWidget()
-        self.task_order_list.setDragDropMode(QListWidget.InternalMoveOnly)
+        self.task_order_list.setDragDropMode(QListWidget.InternalMove)
         self.task_order_list.setAcceptDrops(True)
         self.task_order_list.itemChanged.connect(self.save_current_batch)
         tasks_layout.addWidget(self.task_order_list)
