@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget,
     QTextEdit, QProgressBar, QLabel, QScrollArea, QFrame
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 import logging
 import sys
@@ -285,7 +285,7 @@ class BrowserTab(QWidget):
         layout = QVBoxLayout(self)
         
         self.web_view = QWebEngineView()
-        self.web_view.setUrl("about:blank")
+        self.web_view.setUrl(QUrl("about:blank"))
         layout.addWidget(self.web_view)
 
         placeholder_label = QLabel("Browser view will appear here when running in visible mode")
